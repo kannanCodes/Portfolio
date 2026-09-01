@@ -1,8 +1,6 @@
 "use server";
 
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendPortfolioEmail } from "@/lib/email";
 
 export type ContactFormData = {
   name: string;
@@ -11,30 +9,21 @@ export type ContactFormData = {
   message: string;
 };
 
-export async function sendEmail(data: ContactFormData): Promise<{ success: boolean; error?: string }> {
+export async function sendContactEmail(
+  data: ContactFormData
+): Promise<{ success: boolean; error?: string }> {
+  // Server-side validation
+  if (!data.name?.trim()) return { success: false, error: "Name is required." };
+  if (!data.email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+    return { success: false, error: "Valid email is required." };
+  }
+  if (!data.subject?.trim()) return { success: false, error: "Subject is required." };
+  if (!data.message?.trim() || data.message.trim().length < 10) {
+    return { success: false, error: "Message must be at least 10 characters." };
+  }
+
   try {
-    // Server-side validation
-    if (!data.name || data.name.trim() === "") {
-      return { success: false, error: "Name is required." };
-    }
-    if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-      return { success: false, error: "Valid email is required." };
-    }
-    if (!data.subject || data.subject.trim() === "") {
-      return { success: false, error: "Subject is required." };
-    }
-    if (!data.message || data.message.trim().length < 10) {
-      return { success: false, error: "Message must be at least 10 characters." };
-    }
-
-    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.includes("your_license_key_here") || process.env.RESEND_API_KEY === "re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx") {
-        console.error("Missing valid RESEND_API_KEY");
-        return { success: false, error: "Email service is not configured correctly." };
-    }
-
-    await resend.emails.send({
-      from: "Portfolio Contact <onboarding@resend.dev>",
-      to: "hello.kannan.s@gmail.com",
+    await sendPortfolioEmail({
       replyTo: data.email,
       subject: `[Portfolio] ${data.subject}`,
       text: `Name: ${data.name}\nEmail: ${data.email}\n\n${data.message}`,
@@ -63,7 +52,7 @@ export async function sendEmail(data: ContactFormData): Promise<{ success: boole
     });
     return { success: true };
   } catch (error) {
-    console.error("Email send error:", error);
+    console.error("Contact email send error:", error);
     return { success: false, error: "Failed to send message. Please try again." };
   }
 }

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { sendEmail } from "@/lib/sendEmail";
+import { sendContactEmail } from "@/lib/sendContactEmail";
+import VoiceRecorder from "@/components/VoiceRecorder";
 
 type FormState = {
   name: string;
@@ -22,7 +23,11 @@ type Status = "idle" | "loading" | "success" | "error";
 
 function validate(form: FormState) {
   const errors: Partial<FormState> = {};
-  if (!form.name.trim()) errors.name = "Name is required.";
+  if (!form.name.trim()) {
+    errors.name = "Name is required.";
+  } else if (form.name.trim().length < 3) {
+    errors.name = "Name must be at least 3 characters.";
+  }
   if (!form.email.trim()) {
     errors.email = "Email is required.";
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -98,7 +103,7 @@ export default function Contact() {
 
     setStatus("loading");
     setErrorMsg("");
-    const result = await sendEmail(form);
+    const result = await sendContactEmail(form);
 
     if (result.success) {
       setStatus("success");
@@ -295,23 +300,48 @@ export default function Contact() {
             </button>
 
             {status === "success" && (
-              <p
-                className="font-mono text-green-600"
-                style={{ fontSize: "10px", letterSpacing: "0.05em" }}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "7px",
+                  background: "#f0fdf4",
+                  fontFamily: "inherit",
+                  fontSize: "12px",
+                  color: "#166534",
+                  lineHeight: 1.4,
+                }}
               >
-                Sent — I&apos;ll reply soon ✓
-              </p>
+                <span aria-hidden="true">✓</span>
+                <span>Sent — I&apos;ll reply soon</span>
+              </div>
             )}
             {status === "error" && (
-              <p
-                className="font-mono text-red-400"
-                style={{ fontSize: "10px", letterSpacing: "0.05em" }}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  border: "1px solid #fecaca",
+                  borderRadius: "7px",
+                  background: "#fef2f2",
+                  fontFamily: "inherit",
+                  fontSize: "12px",
+                  color: "#991b1b",
+                  lineHeight: 1.4,
+                }}
               >
-                {errorMsg}
-              </p>
+                <span aria-hidden="true">⚠</span>
+                <span>{errorMsg}</span>
+              </div>
             )}
           </div>
         </form>
+        <VoiceRecorder />
       </div>
     </section>
   );
