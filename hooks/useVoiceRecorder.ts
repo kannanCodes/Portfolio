@@ -166,6 +166,8 @@ export function useVoiceRecorder() {
       return;
     }
 
+    setStatus("initializing");
+
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({

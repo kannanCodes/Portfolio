@@ -127,6 +127,7 @@ export default function VoiceRecorder() {
   const statusText = useMemo(() => {
     if (uploadStatus === "success") return "Voice note sent. Thanks for reaching out.";
     if (uploadStatus === "uploading") return "Uploading voice note.";
+    if (recorder.status === "initializing") return "Requesting microphone access...";
     if (recorder.status === "recording") {
       return `Recording. Microphone active. ${formatTime(recorder.elapsedSeconds)} elapsed.`;
     }
@@ -322,14 +323,20 @@ export default function VoiceRecorder() {
         </div>
       ) : (
         <>
-          {(recorder.status === "idle" || recorder.status === "error") && (
+          {(recorder.status === "idle" || recorder.status === "initializing" || recorder.status === "error") && (
             <VoiceButton
               ariaLabel="Start recording voice note"
-              icon={<Mic size={12} aria-hidden="true" />}
+              icon={
+                recorder.status === "initializing" ? (
+                  <LoaderCircle size={12} aria-hidden="true" className="animate-spin" />
+                ) : (
+                  <Mic size={12} aria-hidden="true" />
+                )
+              }
               onClick={recorder.startRecording}
-              disabled={recorder.isSupported === false}
+              disabled={recorder.isSupported === false || recorder.status === "initializing"}
             >
-              START RECORDING
+              {recorder.status === "initializing" ? "REQUESTING MIC..." : "START RECORDING"}
             </VoiceButton>
           )}
 

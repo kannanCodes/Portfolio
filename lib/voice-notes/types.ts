@@ -1,5 +1,6 @@
 export type VoiceRecordingState =
   | "idle"
+  | "initializing"
   | "recording"
   | "paused"
   | "stopped"
