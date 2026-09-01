@@ -216,8 +216,8 @@ export default function Hero() {
               <a
                 key={label}
                 href={href}
-                target={href.startsWith("http") ? "_blank" : undefined}
-                rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+                target={href.startsWith("http") || href.endsWith(".pdf") ? "_blank" : undefined}
+                rel={href.startsWith("http") || href.endsWith(".pdf") ? "noopener noreferrer" : undefined}
                 className="group flex items-center text-neutral-500 hover:text-neutral-900 transition-colors duration-200"
                 style={{ gap: "6px", fontSize: "11px", letterSpacing: "0.15em", fontFamily: "monospace" }}
                 aria-label={label}

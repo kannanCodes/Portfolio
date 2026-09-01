@@ -13,6 +13,25 @@ export type ContactFormData = {
 
 export async function sendEmail(data: ContactFormData): Promise<{ success: boolean; error?: string }> {
   try {
+    // Server-side validation
+    if (!data.name || data.name.trim() === "") {
+      return { success: false, error: "Name is required." };
+    }
+    if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      return { success: false, error: "Valid email is required." };
+    }
+    if (!data.subject || data.subject.trim() === "") {
+      return { success: false, error: "Subject is required." };
+    }
+    if (!data.message || data.message.trim().length < 10) {
+      return { success: false, error: "Message must be at least 10 characters." };
+    }
+
+    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.includes("your_license_key_here") || process.env.RESEND_API_KEY === "re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx") {
+        console.error("Missing valid RESEND_API_KEY");
+        return { success: false, error: "Email service is not configured correctly." };
+    }
+
     await resend.emails.send({
       from: "Portfolio Contact <onboarding@resend.dev>",
       to: "hello.kannan.s@gmail.com",
