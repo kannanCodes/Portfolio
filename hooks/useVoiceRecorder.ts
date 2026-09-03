@@ -54,6 +54,7 @@ export function useVoiceRecorder() {
   const discardRef = useRef(false);      // true → ignore the next stop event
   const stoppingRef = useRef(false);     // true → stopRecording already in flight
   const maxDurationRef = useRef(false);  // true → stopped at 60s limit
+  const epochRef = useRef(0);            // increments on each new startRecording call
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,9 @@ export function useVoiceRecorder() {
   // ─── Public actions ──────────────────────────────────────────────────────────
 
   const startRecording = useCallback(async () => {
+    // Increment epoch — any pending getUserMedia from a previous call will bail out.
+    const myEpoch = ++epochRef.current;
+
     // Tear down any previous session first.
     clearInterval_();
     clearFallback();
@@ -212,19 +216,33 @@ export function useVoiceRecorder() {
 
     setStatus("initializing");
 
-    // Request microphone
+    // Wrap getUserMedia in a 15-second timeout so the UI never hangs forever.
+    // Chrome often shows the permission prompt as a tiny icon in the address bar
+    // rather than a blocking modal, so users can miss it entirely.
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
-    } catch {
+      const micTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 15000)
+      );
+      stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        }),
+        micTimeout,
+      ]);
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.message === "timeout";
       setStatus("error");
-      setErrorMessage("Microphone access was denied. You can still use the text form.");
+      setErrorMessage(
+        isTimeout
+          ? "Microphone access timed out. Click Allow in your browser's address bar, then try again."
+          : "Microphone access was denied. Click Allow in your browser's address bar, then try again."
+      );
       return;
     }
 
-    if (!mountedRef.current) {
+    if (!mountedRef.current || epochRef.current !== myEpoch) {
+      // A newer startRecording call was made while we were waiting for permission.
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
