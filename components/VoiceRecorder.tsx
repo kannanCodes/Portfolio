@@ -341,7 +341,7 @@ export default function VoiceRecorder() {
           )}
 
           {(recorder.status === "recording" || recorder.status === "paused") && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "14px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "14px", alignItems: "center" }}>
               {recorder.status === "recording" ? (
                 <VoiceButton
                   ariaLabel="Pause voice note recording"
@@ -366,14 +366,21 @@ export default function VoiceRecorder() {
               >
                 STOP
               </VoiceButton>
+              <VoiceButton
+                ariaLabel="Retake voice note"
+                icon={<RotateCcw size={12} aria-hidden="true" />}
+                onClick={handleRetake}
+              >
+                RETAKE
+              </VoiceButton>
             </div>
           )}
 
-          {recorder.audioUrl && recorder.status === "stopped" && (
+          {recorder.status === "stopped" && (
             <div style={{ display: "grid", gap: "16px" }}>
               <audio
                 ref={audioRef}
-                src={recorder.audioUrl}
+                src={recorder.audioUrl ?? undefined}
                 preload="metadata"
                 onLoadedMetadata={(event) => {
                   const nextDuration = event.currentTarget.duration;
