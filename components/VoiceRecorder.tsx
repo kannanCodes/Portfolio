@@ -205,7 +205,13 @@ export default function VoiceRecorder() {
     return () => {
       stopTimer();
       cleanupAudioContext();
-      recorderRef.current?.state !== "inactive" && recorderRef.current?.stop();
+      if (recorderRef.current && recorderRef.current.state !== "inactive") {
+        try {
+          recorderRef.current.ondataavailable = null;
+          recorderRef.current.onstop = null;
+          recorderRef.current.stop();
+        } catch {}
+      }
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
@@ -332,20 +338,18 @@ export default function VoiceRecorder() {
     }
     recorderRef.current = recorder;
 
-    recorder.addEventListener("dataavailable", (e) => {
+    recorder.ondataavailable = (e: BlobEvent) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
-    });
+    };
 
-    recorder.addEventListener("stop", () => {
+    recorder.onstop = () => {
       cleanupAudioContext();
+      stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
 
-      // Ensure hardware pipeline completely flushed before terminating stream tracks
-      setTimeout(() => {
-        stream.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }, 50);
-
-      const recorded = new Blob(chunksRef.current, { type: mime });
+      const recorded = new Blob(chunksRef.current, {
+        type: recorder.mimeType || mime,
+      });
       chunksRef.current = [];
 
       if (recorded.size === 0) {
@@ -358,7 +362,7 @@ export default function VoiceRecorder() {
       setBlob(recorded);
       setAudioUrl(url);
       setStage("review");
-    });
+    };
 
     // Use 250ms timeslice so audio buffers stream evenly without missing chunks
     recorder.start(250);
@@ -376,32 +380,21 @@ export default function VoiceRecorder() {
     }
     const r = recorderRef.current;
     if (!r || r.state === "inactive") return;
-    if (r.state === "paused") {
-      try {
-        r.resume();
-      } catch {}
-    }
-
-    // Flush any pending audio samples before stopping so the end is never cut off
     try {
-      r.requestData();
-    } catch {}
-
-    // Small delay to ensure trailing audio frames are flushed to encoder
-    setTimeout(() => {
-      if (r.state !== "inactive") {
-        r.stop();
-      }
-    }, 120);
+      r.stop();
+    } catch (err) {
+      console.error("Error stopping MediaRecorder:", err);
+    }
   }
 
   function doPause() {
     const r = recorderRef.current;
     if (!r || r.state !== "recording") return;
     try {
-      r.requestData();
-    } catch {}
-    r.pause();
+      r.pause();
+    } catch (err) {
+      console.error("Error pausing MediaRecorder:", err);
+    }
     stopTimer();
     if (segmentStartTimeRef.current !== null) {
       const pausedSecs = Math.max(1, Math.round((Date.now() - segmentStartTimeRef.current) / 1000));
@@ -416,7 +409,11 @@ export default function VoiceRecorder() {
     const r = recorderRef.current;
     if (!r || r.state !== "paused") return;
     segmentStartTimeRef.current = Date.now() - (elapsedRef.current * 1000);
-    r.resume();
+    try {
+      r.resume();
+    } catch (err) {
+      console.error("Error resuming MediaRecorder:", err);
+    }
     startTimer();
     setStage("recording");
   }
@@ -426,7 +423,13 @@ export default function VoiceRecorder() {
     cleanupAudioContext();
     segmentStartTimeRef.current = null;
     const r = recorderRef.current;
-    if (r && r.state !== "inactive") r.stop();
+    if (r && r.state !== "inactive") {
+      try {
+        r.ondataavailable = null;
+        r.onstop = null;
+        r.stop();
+      } catch {}
+    }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     recorderRef.current = null;

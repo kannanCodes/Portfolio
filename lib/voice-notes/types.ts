@@ -11,6 +11,7 @@ export type VoiceRecordingState =
 export type VoiceNoteStatus =
   | "uploaded"
   | "notified"
+  | "notification_failed"
   | "email_failed"
   | "signed_url_failed";
 
@@ -31,7 +32,8 @@ export type VoiceNoteUploadErrorCode =
   | "signed_url_failed"
   | "email_failed"
   | "network_failed"
-  | "server_not_configured";
+  | "server_not_configured"
+  | "server_error";
 
 export type VoiceNoteUploadResponse =
   | {

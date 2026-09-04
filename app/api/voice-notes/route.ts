@@ -1,18 +1,16 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  VOICE_NOTE_BUCKET,
   VOICE_NOTE_DURATION_GRACE_SECONDS,
   VOICE_NOTE_MAX_DURATION_SECONDS,
 } from "@/lib/voice-notes/constants";
-import { EmailConfigurationError } from "@/lib/email";
 import { sendVoiceNoteNotification } from "@/lib/voice-notes/email";
 import { checkVoiceNoteRateLimit } from "@/lib/voice-notes/rate-limit";
 import {
   createVoiceNoteSignedUrl,
   deleteVoiceNoteAudio,
   saveVoiceNoteMetadata,
-  SupabaseConfigurationError,
-  updateVoiceNoteStatus,
   uploadVoiceNoteAudio,
 } from "@/lib/voice-notes/supabase";
 import type { VoiceNoteUploadErrorCode, VoiceNoteUploadResponse } from "@/lib/voice-notes/types";
@@ -30,6 +28,29 @@ type ParsedVoiceNoteForm = {
 };
 
 type VoiceNoteUploadFailure = Extract<VoiceNoteUploadResponse, { success: false }>;
+
+function logFailure(event: string, voiceNoteId?: string, error?: unknown) {
+  const reason =
+    error instanceof Error ? error.message : typeof error === "string" ? error : "Unknown error";
+  console.error(
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      event,
+      ...(voiceNoteId ? { voiceNoteId } : {}),
+      reason,
+    })
+  );
+}
+
+function logInfo(event: string, voiceNoteId?: string) {
+  console.log(
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      event,
+      ...(voiceNoteId ? { voiceNoteId } : {}),
+    })
+  );
+}
 
 function jsonError(status: number, code: VoiceNoteUploadErrorCode, error: string, headers?: HeadersInit) {
   return NextResponse.json<VoiceNoteUploadResponse>(
@@ -117,31 +138,27 @@ function isVoiceNoteUploadFailure(
   return "success" in value && value.success === false;
 }
 
-async function markVoiceNoteStatus(id: string, status: "notified" | "email_failed" | "signed_url_failed") {
-  try {
-    await updateVoiceNoteStatus(id, status);
-  } catch (error) {
-    console.error(`Voice note status update failed (${status}):`, error);
-  }
-}
-
 export async function POST(request: NextRequest) {
-  const rateLimit = checkVoiceNoteRateLimit(getClientKey(request));
+  // 1. Rate Limiting
+  const clientKey = getClientKey(request);
+  const rateLimit = checkVoiceNoteRateLimit(clientKey);
   if (!rateLimit.allowed) {
+    logFailure("voice_note_rate_limited", undefined, "Rate limit exceeded");
     const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000));
     return jsonError(
       429,
       "rate_limited",
-      "Too many voice notes. Please try again in a few minutes.",
+      "Too many submissions. Please try again later.",
       { "Retry-After": String(retryAfter) }
     );
   }
 
+  // 2. Parse Form Data
   let formData: FormData;
   try {
     formData = await request.formData();
   } catch (error) {
-    console.error("Voice note form parsing failed:", error);
+    logFailure("voice_note_form_parse_failed", undefined, error);
     return jsonError(400, "malformed_upload", "Upload could not be read. Please try again.");
   }
 
@@ -150,11 +167,12 @@ export async function POST(request: NextRequest) {
     return jsonError(400, parsed.code, parsed.error);
   }
 
+  // 3. Buffer Audio & Validate
   let buffer: Buffer;
   try {
     buffer = Buffer.from(await parsed.audio.arrayBuffer());
   } catch (error) {
-    console.error("Voice note file buffering failed:", error);
+    logFailure("voice_note_buffer_failed", undefined, error);
     return jsonError(400, "malformed_upload", "Upload could not be read. Please try again.");
   }
 
@@ -163,10 +181,12 @@ export async function POST(request: NextRequest) {
     return jsonError(400, validation.code, validation.message);
   }
 
+  // 4. Generate Voice Note ID BEFORE upload (used consistently across Storage, DB, Email, Logs)
   const id = randomUUID();
   const createdAt = new Date();
   let objectPath: string | null = null;
 
+  // 5. Upload Audio to Storage
   try {
     const upload = await uploadVoiceNoteAudio({
       id,
@@ -175,59 +195,75 @@ export async function POST(request: NextRequest) {
       mimeType: validation.mimeType,
     });
     objectPath = upload.objectPath;
-
-    let dbSaved = false;
-    try {
-      await saveVoiceNoteMetadata({
-        id,
-        name: parsed.name,
-        email: parsed.email,
-        storagePath: upload.storagePath,
-        mimeType: validation.mimeType,
-        fileSize: buffer.length,
-        duration: validation.duration,
-        status: "uploaded",
-      });
-      dbSaved = true;
-    } catch (error) {
-      console.warn("Voice note metadata DB insert skipped (proceeding with storage & email delivery):", error);
-    }
-
-    let signedUrl: string;
-    try {
-      signedUrl = await createVoiceNoteSignedUrl(objectPath);
-    } catch (error) {
-      console.error("Voice note signed URL failed:", error);
-      if (dbSaved) await markVoiceNoteStatus(id, "signed_url_failed");
-      return jsonError(500, "signed_url_failed", "Voice note could not be prepared. Please try again.");
-    }
-
-    try {
-      await sendVoiceNoteNotification({
-        name: parsed.name,
-        email: parsed.email,
-        duration: validation.duration,
-        createdAt,
-        signedUrl,
-      });
-    } catch (error) {
-      console.error("Voice note email notification failed:", error);
-      if (dbSaved) await markVoiceNoteStatus(id, "email_failed");
-      const code = error instanceof EmailConfigurationError ? "server_not_configured" : "email_failed";
-      return jsonError(502, code, "Voice note could not be sent. Please try again.");
-    }
-
-    if (dbSaved) {
-      await markVoiceNoteStatus(id, "notified");
-    }
-    return jsonSuccess("Voice note sent. Thanks for reaching out.");
   } catch (error) {
-    console.error("Voice note upload failed:", error);
+    logFailure("voice_note_storage_upload_failed", id, error);
+    return jsonError(
+      500,
+      "upload_failed",
+      "Something went wrong while sending your voice note. Please try again."
+    );
+  }
 
-    if (error instanceof SupabaseConfigurationError || error instanceof EmailConfigurationError) {
-      return jsonError(503, "server_not_configured", "Voice notes are not available right now.");
+  // 6. Generate 7-day Signed URL
+  let signedUrl: string;
+  try {
+    signedUrl = await createVoiceNoteSignedUrl(objectPath);
+  } catch (error) {
+    logFailure("voice_note_signed_url_failed", id, error);
+    // Cleanup orphaned file since signed URL could not be generated and submission is incomplete
+    try {
+      await deleteVoiceNoteAudio(objectPath);
+    } catch (cleanupError) {
+      logFailure("voice_note_storage_cleanup_failed", id, cleanupError);
     }
+    return jsonError(
+      500,
+      "server_error",
+      "Something went wrong while sending your voice note. Please try again."
+    );
+  }
 
-    return jsonError(500, "upload_failed", "Voice note could not be uploaded. Please try again.");
+  // 7. Send Email Notification
+  let notificationSucceeded = false;
+  try {
+    await sendVoiceNoteNotification({
+      id,
+      name: parsed.name,
+      email: parsed.email,
+      duration: validation.duration,
+      createdAt,
+      signedUrl,
+    });
+    notificationSucceeded = true;
+  } catch (error) {
+    // Audio is already received and stored safely. Do NOT delete audio, do NOT pretend it wasn't received.
+    logFailure("voice_note_notification_failed", id, error);
+  }
+
+  // 8. Log Metadata to Database (Best-effort, non-blocking)
+  const lifecycleStatus = notificationSucceeded ? "notified" : "notification_failed";
+  try {
+    await saveVoiceNoteMetadata({
+      id,
+      name: parsed.name,
+      email: parsed.email,
+      storagePath: `${VOICE_NOTE_BUCKET}/${objectPath}`,
+      mimeType: validation.mimeType,
+      fileSize: buffer.length,
+      duration: validation.duration,
+      status: lifecycleStatus,
+    });
+  } catch (dbError) {
+    logFailure("voice_note_database_logging_failed", id, dbError);
+  }
+
+  // 9. Return Clear User-Facing Response
+  if (notificationSucceeded) {
+    logInfo("voice_note_completed_successfully", id);
+    return jsonSuccess("Your voice note was sent successfully.");
+  } else {
+    // Audio was safely received in storage, but notification failed internally
+    logInfo("voice_note_received_notification_failed", id);
+    return jsonSuccess("Your voice note was received successfully.");
   }
 }

@@ -53,6 +53,7 @@ export default function PixelMagnet({
   className = "",
 }: PixelMagnetProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textRef = useRef<HTMLHeadingElement>(null);
   const pixelsRef = useRef<Pixel[]>([]);
   const mouseRef = useRef({ x: -9999, y: -9999, active: false });
   const rafRef = useRef<number>(0);
@@ -64,39 +65,54 @@ export default function PixelMagnet({
     const container = containerRef.current;
     if (!canvas || !container) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = container.offsetWidth;
     const h = container.offsetHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
+    if (w <= 0 || h <= 0) return;
+
+    const sw = Math.round(w * dpr);
+    const sh = Math.round(h * dpr);
+    if (sw <= 0 || sh <= 0) return;
+
+    canvas.width = sw;
+    canvas.height = sh;
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
 
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     ctx.scale(dpr, dpr);
 
     // Draw text to sample pixel positions
-    const resolvedFont = fontFamily || getComputedStyle(document.body).fontFamily;
-    ctx.font = `${fontWeight} ${fontSize}px ${resolvedFont}`;
+    const resolvedFont = fontFamily || getComputedStyle(document.body).fontFamily || "'Inter', sans-serif";
+
+    // Auto-scale font size on narrow mobile screens so it fits naturally
+    let drawSize = fontSize;
+    ctx.font = `${fontWeight} ${drawSize}px ${resolvedFont}`;
+    const metrics = ctx.measureText(children);
+    if (metrics.width > w && w > 0) {
+      drawSize = Math.max(28, Math.floor(drawSize * (w / metrics.width) * 0.96));
+      ctx.font = `${fontWeight} ${drawSize}px ${resolvedFont}`;
+    }
+
     ctx.fillStyle = color;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
 
-    const metrics = ctx.measureText(children);
     const textX = 0;
     const textY = h / 2;
     ctx.fillText(children, textX, textY);
 
-    // Sample pixel data
-    const imageData = ctx.getImageData(0, 0, w * dpr, h * dpr);
+    // Sample pixel data safely
+    const imageData = ctx.getImageData(0, 0, sw, sh);
     const data = imageData.data;
     const pixels: Pixel[] = [];
 
     for (let py = 0; py < h; py += pixelSize) {
       for (let px = 0; px < w; px += pixelSize) {
-        const ix = Math.round(px * dpr);
-        const iy = Math.round(py * dpr);
-        const idx = (iy * Math.round(w * dpr) + ix) * 4;
+        const ix = Math.min(Math.round(px * dpr), sw - 1);
+        const iy = Math.min(Math.round(py * dpr), sh - 1);
+        const idx = (iy * sw + ix) * 4;
         if (data[idx + 3] > 128) {
           pixels.push({ ox: px, oy: py, x: px, y: py, vx: 0, vy: 0 });
         }
@@ -105,6 +121,15 @@ export default function PixelMagnet({
 
     ctx.clearRect(0, 0, w, h);
     pixelsRef.current = pixels;
+
+    // Smoothly swap from initial fallback text to canvas particles without React re-render
+    if (pixels.length > 0) {
+      if (textRef.current) textRef.current.style.opacity = "0";
+      if (canvasRef.current) canvasRef.current.style.opacity = "1";
+    } else {
+      if (textRef.current) textRef.current.style.opacity = "1";
+      if (canvasRef.current) canvasRef.current.style.opacity = "0";
+    }
   }, [children, fontSize, fontWeight, fontFamily, pixelSize, color]);
 
   /** Animation loop */
@@ -112,10 +137,11 @@ export default function PixelMagnet({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = color;
 
@@ -156,6 +182,13 @@ export default function PixelMagnet({
     buildPixels();
     rafRef.current = requestAnimationFrame(animate);
 
+    // Re-rasterize when web fonts have resolved
+    if (typeof document !== "undefined" && document.fonts) {
+      document.fonts.ready.then(() => {
+        buildPixels();
+      });
+    }
+
     const ro = new ResizeObserver(() => {
       buildPixels();
     });
@@ -181,18 +214,72 @@ export default function PixelMagnet({
     mouseRef.current.active = false;
   }, []);
 
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    mouseRef.current = {
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
+      active: true,
+    };
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    mouseRef.current.active = false;
+  }, []);
+
   return (
     <div
       ref={containerRef}
       className={className}
-      style={{ position: "relative", width: "100%", height: fontSize * 1.6 }}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: fontSize * 1.35,
+        minWidth: 0,
+      }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchMove}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       aria-label={children}
     >
+      {/* Immediate text fallback — renders synchronously on frame 0 so the name never has a blank delay */}
+      <h1
+        ref={textRef}
+        style={{
+          position: "absolute",
+          top: "50%",
+          transform: "translateY(-50%)",
+          left: 0,
+          margin: 0,
+          padding: 0,
+          fontSize: `clamp(32px, 8.5vw, ${fontSize}px)`,
+          fontWeight,
+          fontFamily: fontFamily || "inherit",
+          color,
+          lineHeight: 1,
+          letterSpacing: "-0.01em",
+          whiteSpace: "nowrap",
+          userSelect: "none",
+          pointerEvents: "none",
+          transition: "opacity 0.2s ease",
+        }}
+      >
+        {children}
+      </h1>
+
       <canvas
         ref={canvasRef}
-        style={{ display: "block", pointerEvents: "none" }}
+        style={{
+          display: "block",
+          pointerEvents: "none",
+          maxWidth: "100%",
+          opacity: 0,
+          transition: "opacity 0.2s ease",
+        }}
       />
     </div>
   );

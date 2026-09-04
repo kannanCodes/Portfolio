@@ -1,6 +1,7 @@
 import { escapeHtml, sendPortfolioEmail } from "@/lib/email";
 
 export async function sendVoiceNoteNotification(input: {
+  id?: string;
   name: string;
   email: string;
   duration: number;
@@ -9,6 +10,7 @@ export async function sendVoiceNoteNotification(input: {
 }) {
   const safeName = escapeHtml(input.name);
   const safeEmail = escapeHtml(input.email);
+  const safeId = input.id ? escapeHtml(input.id) : null;
   const duration = `${Math.round(input.duration)}s`;
   const dateTime = input.createdAt.toLocaleString("en-IN", {
     dateStyle: "medium",
@@ -18,10 +20,11 @@ export async function sendVoiceNoteNotification(input: {
 
   await sendPortfolioEmail({
     replyTo: input.email,
-    subject: "[Portfolio] New voice note",
+    subject: `[Portfolio] New voice note from ${input.name}`,
     text: [
       "New voice note from your portfolio",
       "",
+      `ID: ${input.id ?? "n/a"}`,
       `Name: ${input.name}`,
       `Email: ${input.email}`,
       `Duration: ${duration}`,

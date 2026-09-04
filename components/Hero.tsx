@@ -183,16 +183,13 @@ export default function Hero() {
       className="flex flex-col justify-center"
     >
       <div
-        className="animate-fade-up"
+        className="animate-fade-up flex flex-col md:flex-row md:items-center justify-between"
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "64px",
-          flexWrap: "wrap",
+          gap: "clamp(28px, 4vw, 56px)",
         }}
       >
         {/* ── Left: name / role / bio / links ─────────────── */}
-        <div style={{ flex: "1 1 320px" }}>
+        <div className="flex-1" style={{ minWidth: 0, maxWidth: "600px" }}>
           <PixelMagnet
             className="mb-5"
             fontSize={72}
@@ -234,7 +231,7 @@ export default function Hero() {
         </div>
 
         {/* ── Right: animated JSON viewer ──────────────────── */}
-        <div style={{ flex: "0 0 auto" }} className="hidden md:block">
+        <div className="hidden md:block shrink-0">
           <AnimatedJsonViewer />
         </div>
       </div>
