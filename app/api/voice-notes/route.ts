@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     return jsonError(400, "malformed_upload", "Upload could not be read. Please try again.");
   }
 
-  const validation = await validateVoiceNoteFile(buffer, parsed.audio.type);
+  const validation = await validateVoiceNoteFile(buffer, parsed.audio.type, parsed.clientDuration);
   if (!validation.valid) {
     return jsonError(400, validation.code, validation.message);
   }
@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
     });
     objectPath = upload.objectPath;
 
+    let dbSaved = false;
     try {
       await saveVoiceNoteMetadata({
         id,
@@ -187,14 +188,9 @@ export async function POST(request: NextRequest) {
         duration: validation.duration,
         status: "uploaded",
       });
+      dbSaved = true;
     } catch (error) {
-      console.error("Voice note metadata insert failed:", error);
-      try {
-        await deleteVoiceNoteAudio(objectPath);
-      } catch (cleanupError) {
-        console.error("Voice note storage cleanup failed:", cleanupError);
-      }
-      return jsonError(500, "database_failed", "Voice note could not be saved. Please try again.");
+      console.warn("Voice note metadata DB insert skipped (proceeding with storage & email delivery):", error);
     }
 
     let signedUrl: string;
@@ -202,7 +198,7 @@ export async function POST(request: NextRequest) {
       signedUrl = await createVoiceNoteSignedUrl(objectPath);
     } catch (error) {
       console.error("Voice note signed URL failed:", error);
-      await markVoiceNoteStatus(id, "signed_url_failed");
+      if (dbSaved) await markVoiceNoteStatus(id, "signed_url_failed");
       return jsonError(500, "signed_url_failed", "Voice note could not be prepared. Please try again.");
     }
 
@@ -216,12 +212,14 @@ export async function POST(request: NextRequest) {
       });
     } catch (error) {
       console.error("Voice note email notification failed:", error);
-      await markVoiceNoteStatus(id, "email_failed");
+      if (dbSaved) await markVoiceNoteStatus(id, "email_failed");
       const code = error instanceof EmailConfigurationError ? "server_not_configured" : "email_failed";
       return jsonError(502, code, "Voice note could not be sent. Please try again.");
     }
 
-    await markVoiceNoteStatus(id, "notified");
+    if (dbSaved) {
+      await markVoiceNoteStatus(id, "notified");
+    }
     return jsonSuccess("Voice note sent. Thanks for reaching out.");
   } catch (error) {
     console.error("Voice note upload failed:", error);

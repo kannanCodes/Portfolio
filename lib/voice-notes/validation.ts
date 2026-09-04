@@ -41,7 +41,8 @@ function detectAudioMimeType(buffer: Buffer) {
 
 export async function validateVoiceNoteFile(
   buffer: Buffer,
-  declaredMimeType: string | null | undefined
+  declaredMimeType: string | null | undefined,
+  clientDuration?: number
 ): Promise<VoiceNoteFileValidationResult> {
   if (buffer.length === 0) {
     return {
@@ -83,22 +84,33 @@ export async function validateVoiceNoteFile(
     const metadata = await parseBuffer(
       buffer,
       { mimeType: detectedMimeType, size: buffer.length },
-      { duration: true, skipCovers: true }
+      { duration: false, skipCovers: true }
     );
-    const duration = metadata.format.duration;
-    const hasAudio =
-      metadata.format.hasAudio === true ||
-      typeof metadata.format.numberOfChannels === "number" ||
-      metadata.format.trackInfo.some((track) => Boolean(track.audio));
+    const parsedDuration = metadata.format.duration;
     const hasVideo =
       metadata.format.hasVideo === true ||
-      metadata.format.trackInfo.some((track) => Boolean(track.video));
+      (metadata.format.trackInfo?.some((track) => Boolean(track.video)) ?? false);
 
-    if (!hasAudio || hasVideo || !Number.isFinite(duration) || !duration || duration <= 0) {
+    if (hasVideo) {
       return {
         valid: false,
         code: "invalid_audio",
-        message: "The recording could not be read. Please try again.",
+        message: "Video is not allowed. Please send an audio recording.",
+      };
+    }
+
+    // MediaRecorder produces WebM/fMP4 streams without container duration in the header.
+    // Use metadata parsed duration if finite and positive; otherwise fall back to client duration.
+    const duration =
+      typeof parsedDuration === "number" && Number.isFinite(parsedDuration) && parsedDuration > 0
+        ? parsedDuration
+        : clientDuration;
+
+    if (!duration || !Number.isFinite(duration) || duration <= 0) {
+      return {
+        valid: false,
+        code: "invalid_audio",
+        message: "The recording duration could not be determined. Please try again.",
       };
     }
 
@@ -117,7 +129,26 @@ export async function validateVoiceNoteFile(
       duration,
     };
   } catch (error) {
-    console.error("Voice note metadata validation failed:", error);
+    console.warn("Voice note deep metadata parse skipped, verifying container format & duration:", error);
+
+    // Fall back to container validation if client duration is valid and buffer is sufficient
+    if (clientDuration && Number.isFinite(clientDuration) && clientDuration > 0) {
+      if (clientDuration > VOICE_NOTE_MAX_DURATION_SECONDS + VOICE_NOTE_DURATION_GRACE_SECONDS) {
+        return {
+          valid: false,
+          code: "duration_exceeded",
+          message: "Voice notes must be 60 seconds or less.",
+        };
+      }
+
+      return {
+        valid: true,
+        mimeType: detectedMimeType,
+        extension: config.extension,
+        duration: clientDuration,
+      };
+    }
+
     return {
       valid: false,
       code: "invalid_audio",

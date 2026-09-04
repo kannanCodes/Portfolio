@@ -135,13 +135,18 @@ export default function VoiceRecorder() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playTime, setPlayTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const intervalRef = useRef<number | null>(null);
   const elapsedRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const segmentStartTimeRef = useRef<number | null>(null);
 
   // ─── Check mic permission on mount ────────────────────────────────────────
 
@@ -155,8 +160,6 @@ export default function VoiceRecorder() {
     }
 
     if (!navigator.permissions?.query) {
-      // Permissions API not available (e.g. Firefox) — go straight to idle and
-      // let getUserMedia prompt when they click record.
       setStage("idle");
       return;
     }
@@ -172,7 +175,6 @@ export default function VoiceRecorder() {
           setStage("permission-prompt");
         }
 
-        // React live to permission changes (e.g. user changes in Chrome settings)
         result.addEventListener("change", () => {
           if (result.state === "granted") setStage("idle");
           else if (result.state === "denied") setStage("permission-denied");
@@ -180,16 +182,29 @@ export default function VoiceRecorder() {
         });
       })
       .catch(() => {
-        // Can't query permission → try getUserMedia when user clicks
         setStage("idle");
       });
   }, []);
 
-  // ─── Cleanup on unmount ───────────────────────────────────────────────────
+  // ─── Cleanup helpers ──────────────────────────────────────────────────────
+
+  function cleanupAudioContext() {
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setAudioLevel(0);
+  }
 
   useEffect(() => {
     return () => {
       stopTimer();
+      cleanupAudioContext();
       recorderRef.current?.state !== "inactive" && recorderRef.current?.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (audioUrl) URL.revokeObjectURL(audioUrl);
@@ -202,12 +217,18 @@ export default function VoiceRecorder() {
   function startTimer() {
     stopTimer();
     intervalRef.current = window.setInterval(() => {
-      elapsedRef.current += 1;
-      setElapsed(elapsedRef.current);
+      if (segmentStartTimeRef.current !== null) {
+        const secs = Math.max(1, Math.round((Date.now() - segmentStartTimeRef.current) / 1000));
+        elapsedRef.current = secs;
+        setElapsed(secs);
+      } else {
+        elapsedRef.current += 1;
+        setElapsed(elapsedRef.current);
+      }
       if (elapsedRef.current >= VOICE_NOTE_MAX_DURATION_SECONDS) {
         doStop();
       }
-    }, 1000);
+    }, 250);
   }
 
   function stopTimer() {
@@ -229,13 +250,58 @@ export default function VoiceRecorder() {
 
     let stream: MediaStream;
     try {
+      // Raw studio audio: disable echoCancellation & noiseSuppression so browser doesn't duck or gate initial speech
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+          sampleRate: 48000,
+        },
       });
     } catch {
-      setStage("permission-denied");
-      return;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        setStage("permission-denied");
+        return;
+      }
     }
+
+    // Set up live AudioContext for level visualizer & keeping audio hardware pipe active
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        cleanupAudioContext();
+        const ctx = new AudioCtx();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.4;
+        source.connect(analyser);
+        audioContextRef.current = ctx;
+        analyserRef.current = analyser;
+
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const loop = () => {
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) sum += data[i];
+          const avg = sum / data.length;
+          setAudioLevel(Math.min(1, avg / 110));
+          animFrameRef.current = requestAnimationFrame(loop);
+        };
+        animFrameRef.current = requestAnimationFrame(loop);
+      }
+    } catch (e) {
+      console.warn("Live visualizer unavailable:", e);
+    }
+
+    // Give the hardware track 120ms to stabilize audio clock before starting encoder
+    await new Promise((resolve) => setTimeout(resolve, 120));
 
     beginRecording(stream, mime);
   }
@@ -250,11 +316,20 @@ export default function VoiceRecorder() {
     setMimeType(mime);
     setElapsed(0);
     elapsedRef.current = 0;
+    segmentStartTimeRef.current = Date.now();
     chunksRef.current = [];
 
     streamRef.current = stream;
 
-    const recorder = new MediaRecorder(stream, { mimeType: mime });
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, {
+        mimeType: mime,
+        audioBitsPerSecond: 128000, // 128 kbps studio quality
+      });
+    } catch {
+      recorder = new MediaRecorder(stream, { mimeType: mime });
+    }
     recorderRef.current = recorder;
 
     recorder.addEventListener("dataavailable", (e) => {
@@ -262,8 +337,13 @@ export default function VoiceRecorder() {
     });
 
     recorder.addEventListener("stop", () => {
-      stream.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+      cleanupAudioContext();
+
+      // Ensure hardware pipeline completely flushed before terminating stream tracks
+      setTimeout(() => {
+        stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }, 50);
 
       const recorded = new Blob(chunksRef.current, { type: mime });
       chunksRef.current = [];
@@ -280,31 +360,62 @@ export default function VoiceRecorder() {
       setStage("review");
     });
 
-    // Use 500ms timeslice so chunks accumulate before stop() fires
-    recorder.start(500);
+    // Use 250ms timeslice so audio buffers stream evenly without missing chunks
+    recorder.start(250);
     setStage("recording");
     startTimer();
   }
 
   function doStop() {
     stopTimer();
+    if (segmentStartTimeRef.current !== null) {
+      const finalSecs = Math.max(1, Math.round((Date.now() - segmentStartTimeRef.current) / 1000));
+      elapsedRef.current = finalSecs;
+      setElapsed(finalSecs);
+      segmentStartTimeRef.current = null;
+    }
     const r = recorderRef.current;
     if (!r || r.state === "inactive") return;
-    if (r.state === "paused") r.resume(); // flush data before stop
-    r.stop();
+    if (r.state === "paused") {
+      try {
+        r.resume();
+      } catch {}
+    }
+
+    // Flush any pending audio samples before stopping so the end is never cut off
+    try {
+      r.requestData();
+    } catch {}
+
+    // Small delay to ensure trailing audio frames are flushed to encoder
+    setTimeout(() => {
+      if (r.state !== "inactive") {
+        r.stop();
+      }
+    }, 120);
   }
 
   function doPause() {
     const r = recorderRef.current;
     if (!r || r.state !== "recording") return;
+    try {
+      r.requestData();
+    } catch {}
     r.pause();
     stopTimer();
+    if (segmentStartTimeRef.current !== null) {
+      const pausedSecs = Math.max(1, Math.round((Date.now() - segmentStartTimeRef.current) / 1000));
+      elapsedRef.current = pausedSecs;
+      setElapsed(pausedSecs);
+      segmentStartTimeRef.current = null;
+    }
     setStage("paused");
   }
 
   function doResume() {
     const r = recorderRef.current;
     if (!r || r.state !== "paused") return;
+    segmentStartTimeRef.current = Date.now() - (elapsedRef.current * 1000);
     r.resume();
     startTimer();
     setStage("recording");
@@ -312,6 +423,8 @@ export default function VoiceRecorder() {
 
   function doRetake() {
     stopTimer();
+    cleanupAudioContext();
+    segmentStartTimeRef.current = null;
     const r = recorderRef.current;
     if (r && r.state !== "inactive") r.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -346,11 +459,12 @@ export default function VoiceRecorder() {
     setUploadErr("");
 
     const ext = getVoiceNoteExtension(mimeType ?? "");
+    const effectiveDuration = Math.max(1, elapsed, Math.round(duration || 0));
     const fd = new FormData();
     fd.append("audio", blob, `voice-note.${ext}`);
     fd.append("name", contact.name.trim());
     fd.append("email", contact.email.trim());
-    fd.append("duration", String(elapsed));
+    fd.append("duration", String(effectiveDuration));
 
     try {
       const res = await fetch("/api/voice-notes", { method: "POST", body: fd });
@@ -449,7 +563,7 @@ export default function VoiceRecorder() {
       {/* ── Active recording ── */}
       {(stage === "recording" || stage === "paused") && (
         <div style={{ display: "grid", gap: "14px" }}>
-          {/* Timer + live indicator */}
+          {/* Timer + live indicator + visualizer */}
           <div className="font-mono" style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "#111" }}>
             {stage === "recording" && (
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#dc2626", display: "inline-block", animation: "pulse 1s infinite" }} />
@@ -459,6 +573,28 @@ export default function VoiceRecorder() {
             )}
             <span style={{ fontWeight: 600 }}>{fmt(elapsed)}</span>
             <span style={{ color: "#999", fontSize: "10px" }}>/ {fmt(VOICE_NOTE_MAX_DURATION_SECONDS)}</span>
+
+            {/* Live audio level visualizer */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "3px", height: "14px", marginLeft: "4px" }}>
+              {[0.5, 1, 0.75, 0.9, 0.6].map((mult, idx) => {
+                const height = stage === "recording"
+                  ? Math.max(3, Math.min(14, Math.round(audioLevel * 14 * mult * 2)))
+                  : 3;
+                return (
+                  <span
+                    key={idx}
+                    style={{
+                      display: "inline-block",
+                      width: 2,
+                      height: `${height}px`,
+                      backgroundColor: stage === "recording" && audioLevel > 0.08 ? "#dc2626" : "#cbd5e1",
+                      borderRadius: 1,
+                      transition: "height 0.08s ease, background-color 0.15s ease",
+                    }}
+                  />
+                );
+              })}
+            </div>
           </div>
 
           {/* Controls */}

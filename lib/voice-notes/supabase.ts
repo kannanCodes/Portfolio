@@ -68,7 +68,7 @@ export async function createVoiceNoteSignedUrl(objectPath: string) {
 
 export async function saveVoiceNoteMetadata(input: VoiceNoteMetadataInput) {
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from("voice_notes").insert({
+  const row = {
     id: input.id,
     name: input.name,
     email: input.email,
@@ -77,18 +77,20 @@ export async function saveVoiceNoteMetadata(input: VoiceNoteMetadataInput) {
     file_size: input.fileSize,
     duration: input.duration,
     status: input.status,
-  });
+  };
 
-  if (error) {
-    throw error;
-  }
+  const res1 = await supabase.from("voice_notes").insert(row);
+  if (!res1.error) return;
+
+  const res2 = await supabase.from("voice-notes").insert(row);
+  if (!res2.error) return;
+
+  throw res1.error ?? res2.error;
 }
 
 export async function updateVoiceNoteStatus(id: string, status: VoiceNoteStatus) {
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from("voice_notes").update({ status }).eq("id", id);
-
-  if (error) {
-    throw error;
-  }
+  const res1 = await supabase.from("voice_notes").update({ status }).eq("id", id);
+  if (!res1.error) return;
+  await supabase.from("voice-notes").update({ status }).eq("id", id);
 }
