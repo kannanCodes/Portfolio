@@ -2,7 +2,7 @@
 
 > Personal portfolio website showcasing full-stack development, real-time systems, and interactive UI engineering.
 
-🔗 **Live Demo:** [portfolio-lusf.vercel.app](https://portfolio-lusf.vercel.app/)
+🔗 **Live:** [kannann.me](https://kannann.me)
 
 ---
 
@@ -72,8 +72,7 @@ npm run start
 
 ## 👤 Author
 
-**Kannan S**
-- **Website**: [portfolio-lusf.vercel.app](https://portfolio-lusf.vercel.app/)
+**Kannan S** — MERN Stack Developer
 - **GitHub**: [@kannanCodes](https://github.com/kannanCodes)
 - **LinkedIn**: [kannan-dev](https://www.linkedin.com/in/kannan-dev/)
 - **Email**: [hello.kannan.s@gmail.com](mailto:hello.kannan.s@gmail.com)
