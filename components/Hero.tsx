@@ -200,6 +200,8 @@ export default function Hero() {
             magnetStrength={0.3}
             returnSpeed={0.1}
             color="#111111"
+            autoPlay={true}
+            autoPlayDelay={1300}
           >
             KANNAN S.
           </PixelMagnet>
