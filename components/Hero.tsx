@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Mail, FileText, ArrowUpRight } from "lucide-react";
 import PixelMagnet from "@/components/ui/pixel-magnet";
+import { PointerHighlight } from "@/components/ui/pointer-highlight";
 
 const GitHubIcon = ({ size = 14 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -32,6 +34,15 @@ const socialLinks: SocialLink[] = [
 
 /* ─── Hero ─────────────────────────────────────────────────── */
 export default function Hero() {
+  // Delay the PointerHighlight until after the KANNAN S. pixel animation finishes.
+  // autoPlayDelay=1300ms + ~1500ms animation ≈ 2800ms → give a 3200ms buffer.
+  const [showHighlight, setShowHighlight] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowHighlight(true), 3200);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <section
       id="home"
@@ -55,9 +66,20 @@ export default function Hero() {
           KANNAN S.
         </PixelMagnet>
 
-        <p className="text-neutral-500 mb-6" style={{ fontSize: "15px", lineHeight: 1.8, maxWidth: "420px" }}>
-          I like turning &quot;what if?&quot; into &quot;it works&quot;.
-        </p>
+        {showHighlight ? (
+          <PointerHighlight
+            rectangleClassName="border-neutral-400"
+            pointerClassName="text-neutral-600"
+          >
+            <p className="text-neutral-500 mb-6" style={{ fontSize: "15px", lineHeight: 1.8, maxWidth: "420px" }}>
+              I like turning &quot;what if?&quot; into &quot;it works&quot;.
+            </p>
+          </PointerHighlight>
+        ) : (
+          <p className="text-neutral-500 mb-6" style={{ fontSize: "15px", lineHeight: 1.8, maxWidth: "420px" }}>
+            I like turning &quot;what if?&quot; into &quot;it works&quot;.
+          </p>
+        )}
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "28px", paddingTop: "32px" }}>
           {socialLinks.map(({ label, href, icon: Icon }) => (
