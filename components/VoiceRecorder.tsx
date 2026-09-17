@@ -525,7 +525,7 @@ export default function VoiceRecorder() {
       {stage === "permission-prompt" && (
         <div style={{ display: "grid", gap: "12px" }}>
           <p className="font-mono text-neutral-500" style={{ fontSize: "10px", lineHeight: 1.7 }}>
-            Click below. Chrome will ask for microphone access — click <strong>Allow</strong>.
+            Click below. Your browser will ask for microphone access — click <strong>Allow</strong>.
           </p>
           <Btn icon={<Mic size={12} />} onClick={requestMicAndStart} variant="primary">
             ALLOW MIC &amp; START RECORDING
@@ -649,7 +649,7 @@ export default function VoiceRecorder() {
           {/* Name + Email */}
           <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "14px" }}>
             <FieldInput
-              id="vn-name" label="Name" type="text" placeholder="Kannan S"
+              id="vn-name" label="Name" type="text" placeholder="Your name"
               value={contact.name} onChange={(v) => setContact((c) => ({ ...c, name: v }))}
               onBlur={() => setTouched((t) => ({ ...t, name: true }))}
               touched={touched.name} error={contactErrors.name} disabled={isUploading}

@@ -174,7 +174,7 @@ export default function Contact() {
                 id="name"
                 name="name"
                 type="text"
-                placeholder="Kannan S"
+                placeholder="Your name"
                 value={form.name}
                 onChange={handleChange}
                 onBlur={handleBlur}
