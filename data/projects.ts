@@ -17,7 +17,7 @@ export const projects: Project[] = [
       "Engineered a real-time collaborative workspace with WebRTC peer-to-peer video/audio, a Socket.io-synchronized Monaco Editor, and an isolated Docker-based code execution engine with Redis rate-limiting and sub-second execution. Integrated Google Gemini API for context-aware AI hints and Stripe for subscription billing, deployed via CI/CD to AWS EC2 with Nginx and PM2.",
     tags: ["React", "TypeScript", "Node.js", "MongoDB", "Redis", "Docker", "WebRTC", "Socket.io", "AWS"],
     githubLink: "https://github.com/kannanCodes/zenCode_",
-    liveLink: "https://github.com/kannanCodes",
+    liveLink: "https://zencode.site",
   },
   {
     id: "skillmount",
