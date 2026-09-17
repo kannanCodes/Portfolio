@@ -9,7 +9,6 @@
 ## 🚀 Highlights & Features
 
 - **Interactive Pixel Magnet Hero**: Custom HTML5 canvas particle physics that react to mouse and touch movements, with a zero-delay SSR fallback and responsive font scaling.
-- **Animated Code Terminal**: Interactive real-time typing JSON terminal featuring macOS-style window controls.
 - **Voice Note Messaging**: In-browser voice recorder with live audio frequency visualizers, container-level WebM duration validation, Supabase Storage persistence, and instant Resend email notifications with secure 7-day signed playback links.
 - **Modern Minimalist Aesthetic**: Book-margin layout, sleek typography, micro-animations, and full responsive design across mobile, tablet, and desktop viewports.
 
