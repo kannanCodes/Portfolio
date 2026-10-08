@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Mail, FileText, ArrowUpRight } from "lucide-react";
-import PixelMagnet from "@/components/ui/pixel-magnet";
+import { VerticalCutReveal } from "@/components/ui/vertical-cut-reveal";
 import { PointerHighlight } from "@/components/ui/pointer-highlight";
 
 const GitHubIcon = ({ size = 14 }: { size?: number }) => (
@@ -34,12 +34,11 @@ const socialLinks: SocialLink[] = [
 
 /* ─── Hero ─────────────────────────────────────────────────── */
 export default function Hero() {
-  // Delay the PointerHighlight until after the KANNAN S. pixel animation finishes.
-  // autoPlayDelay=1300ms + ~1500ms animation ≈ 2800ms → give a 3200ms buffer.
   const [showHighlight, setShowHighlight] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setShowHighlight(true), 3200);
+    // Reveal pointer highlight smoothly after preloader (1300ms) + cut animation (~600ms)
+    const t = setTimeout(() => setShowHighlight(true), 2100);
     return () => clearTimeout(t);
   }, []);
 
@@ -50,21 +49,20 @@ export default function Hero() {
       className="flex flex-col justify-center"
     >
       <div className="animate-fade-up" style={{ maxWidth: "680px" }}>
-        <PixelMagnet
-          className="mb-5"
-          fontSize={72}
-          fontWeight={700}
-          fontFamily="'Inter', sans-serif"
-          pixelSize={4}
-          magnetRadius={90}
-          magnetStrength={0.3}
-          returnSpeed={0.1}
-          color="#111111"
-          autoPlay={true}
-          autoPlayDelay={1300}
-        >
-          KANNAN S.
-        </PixelMagnet>
+        <h1 className="font-black text-5xl sm:text-7xl text-foreground tracking-tighter mb-5">
+          <VerticalCutReveal
+            splitBy="characters"
+            staggerDuration={0.04}
+            staggerFrom="center"
+            transition={{ damping: 20, stiffness: 300, type: "spring" }}
+            autoStartDelay={1350}
+            enableHover={true}
+            containerClassName="cursor-pointer"
+            onComplete={() => setShowHighlight(true)}
+          >
+            KANNAN S.
+          </VerticalCutReveal>
+        </h1>
 
         {showHighlight ? (
           <PointerHighlight
