@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Mail, FileText, ArrowUpRight } from "lucide-react";
-import { VerticalCutReveal } from "@/components/ui/vertical-cut-reveal";
 import { PointerHighlight } from "@/components/ui/pointer-highlight";
 
 const GitHubIcon = ({ size = 14 }: { size?: number }) => (
@@ -37,8 +36,8 @@ export default function Hero() {
   const [showHighlight, setShowHighlight] = useState(false);
 
   useEffect(() => {
-    // Reveal pointer highlight smoothly after preloader (1300ms) + cut animation (~600ms)
-    const t = setTimeout(() => setShowHighlight(true), 2100);
+    // Reveal pointer highlight after preloader finishes
+    const t = setTimeout(() => setShowHighlight(true), 1400);
     return () => clearTimeout(t);
   }, []);
 
@@ -50,18 +49,7 @@ export default function Hero() {
     >
       <div className="animate-fade-up" style={{ maxWidth: "680px" }}>
         <h1 className="font-black text-5xl sm:text-7xl text-foreground tracking-tighter mb-5">
-          <VerticalCutReveal
-            splitBy="characters"
-            staggerDuration={0.04}
-            staggerFrom="center"
-            transition={{ damping: 20, stiffness: 300, type: "spring" }}
-            autoStartDelay={1350}
-            enableHover={true}
-            containerClassName="cursor-pointer"
-            onComplete={() => setShowHighlight(true)}
-          >
-            KANNAN S.
-          </VerticalCutReveal>
+          KANNAN S.
         </h1>
 
         {showHighlight ? (

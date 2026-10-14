@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
+import { RandomLetterSwap } from "@/components/ui/random-letter-swap";
 
 const navLinks = [
   { label: "HOME", href: "#home" },
@@ -60,28 +61,32 @@ export default function Navbar() {
         scrolled ? "bg-[#f5f2ed]/90 backdrop-blur-md" : "bg-transparent"
       }`}
     >
-      <nav style={{ marginLeft: "max(48px, 8vw)", marginRight: "max(48px, 8vw)" }} className="pt-10 pb-4 flex items-center justify-between">
+      <nav style={{ marginLeft: "max(48px, 8vw)", marginRight: "max(48px, 8vw)" }} className="pt-12 pb-6 md:pt-14 md:pb-7 flex items-center justify-between">
         {/* Logo */}
         <button
           onClick={() => handleNav("#home", "HOME")}
-          className="text-sm font-mono font-semibold tracking-widest text-neutral-900 hover:opacity-60 transition-opacity"
+          className="text-base md:text-lg font-mono font-semibold tracking-widest text-neutral-900 cursor-pointer hover:opacity-80 transition-opacity"
         >
           KANNAN S
         </button>
 
-        {/* Desktop Links */}
-        <ul className="hidden md:flex items-center gap-8">
+        {/* Desktop Links with RandomLetterSwap */}
+        <ul className="hidden md:flex items-center gap-10 md:gap-12">
           {navLinks.map((link) => (
             <li key={link.label}>
               <button
                 onClick={() => handleNav(link.href, link.label)}
-                className={`text-xs font-mono tracking-widest transition-all duration-200 ${
+                className={`text-sm md:text-[15px] font-mono tracking-widest cursor-pointer transition-all duration-200 ${
                   active === link.label
                     ? "text-neutral-900 font-bold"
                     : "text-neutral-400 hover:text-neutral-900"
                 }`}
               >
-                {link.label}
+                <RandomLetterSwap
+                  label={link.label}
+                  staggerDuration={0.025}
+                  transition={{ duration: 0.5, type: "spring" }}
+                />
               </button>
             </li>
           ))}
@@ -89,28 +94,32 @@ export default function Navbar() {
 
         {/* Mobile Hamburger */}
         <button
-          className="md:hidden text-neutral-700"
+          className="md:hidden text-neutral-700 p-1 cursor-pointer"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
         >
-          {menuOpen ? <X size={20} /> : <Menu size={20} />}
+          {menuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </nav>
 
       {/* Mobile Menu */}
       {menuOpen && (
-        <div className="md:hidden bg-[#f5f2ed] border-t border-neutral-200 px-6 py-4 flex flex-col gap-4">
+        <div className="md:hidden bg-[#f5f2ed] px-8 py-5 flex flex-col gap-5">
           {navLinks.map((link) => (
             <button
               key={link.label}
               onClick={() => handleNav(link.href, link.label)}
-              className={`text-left text-xs font-mono tracking-widest transition-all duration-200 ${
+              className={`text-left text-sm font-mono tracking-widest transition-all duration-200 py-1 ${
                 active === link.label
                   ? "text-neutral-900 font-bold"
                   : "text-neutral-400"
               }`}
             >
-              {link.label}
+              <RandomLetterSwap
+                label={link.label}
+                staggerDuration={0.025}
+                transition={{ duration: 0.5, type: "spring" }}
+              />
             </button>
           ))}
         </div>

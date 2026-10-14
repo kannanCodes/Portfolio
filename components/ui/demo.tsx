@@ -1,5 +1,5 @@
-import VerticalCutRevealChars from "@/components/ui/m-vertical-cut-reveal-2";
+import RandomLetterSwapNav from "@/components/ui/m-random-letter-swap-1";
 
 export default function Default() {
-  return <VerticalCutRevealChars />;
+  return <RandomLetterSwapNav />;
 }
