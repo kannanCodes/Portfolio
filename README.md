@@ -8,7 +8,8 @@
 
 ## 🚀 Highlights & Features
 
-- **Interactive Pixel Magnet Hero**: Custom HTML5 canvas particle physics that react to mouse and touch movements, with a zero-delay SSR fallback and responsive font scaling.
+- **Interactive Navigation Micro-Interactions**: Spring-physics `RandomLetterSwap` hover effects on the navbar and brand logo with randomized character shuffling.
+- **Clean Typographic Hero**: Bold, minimalist hero presentation with an interactive `PointerHighlight` callout and quick-action social/resume links.
 - **Voice Note Messaging**: In-browser voice recorder with live audio frequency visualizers, container-level WebM duration validation, Supabase Storage persistence, and instant Resend email notifications with secure 7-day signed playback links.
 - **Modern Minimalist Aesthetic**: Book-margin layout, sleek typography, micro-animations, and full responsive design across mobile, tablet, and desktop viewports.
 
@@ -17,7 +18,7 @@
 ## 🛠️ Tech Stack
 
 - **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
-- **UI & Styling**: [React 19](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/), [Lucide Icons](https://lucide.dev/)
+- **UI & Styling**: [React 19](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/), [Motion](https://motion.dev/) (Framer Motion), [Lucide Icons](https://lucide.dev/)
 - **Audio & Media**: HTML5 `MediaRecorder`, Web Audio API (`AudioContext`, `AnalyserNode`), `music-metadata`
 - **Storage & Database**: [Supabase](https://supabase.com/) (Storage & Postgres)
 - **Email Delivery**: [Resend](https://resend.com/)
