@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Mail, FileText, ArrowUpRight } from "lucide-react";
 import { PointerHighlight } from "@/components/ui/pointer-highlight";
+import { PixelatedImageReveal } from "@/components/ui/pixelated-image-reveal";
 
 const GitHubIcon = ({ size = 14 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -45,48 +46,71 @@ export default function Hero() {
     <section
       id="home"
       style={{ minHeight: "100vh", paddingTop: "120px", paddingBottom: "100px" }}
-      className="flex flex-col justify-center"
+      className="flex items-center"
     >
-      <div className="animate-fade-up" style={{ maxWidth: "680px" }}>
-        <h1 className="font-black text-5xl sm:text-7xl text-foreground tracking-tighter mb-5">
-          KANNAN S.
-        </h1>
+      {/* ── Split layout: text left, photo right ── */}
+      <div
+        className="animate-fade-up w-full flex flex-col sm:flex-row items-start sm:items-center justify-between"
+        style={{ gap: "48px" }}
+      >
+        {/* Left: text content */}
+        <div style={{ flex: "1 1 0", minWidth: 0 }}>
+          <h1 className="font-black text-5xl sm:text-7xl text-foreground tracking-tighter mb-5">
+            KANNAN S.
+          </h1>
 
-        {showHighlight ? (
-          <PointerHighlight
-            rectangleClassName="border-neutral-400"
-            pointerClassName="text-neutral-600"
-          >
+          {showHighlight ? (
+            <PointerHighlight
+              rectangleClassName="border-neutral-400"
+              pointerClassName="text-neutral-600"
+            >
+              <p className="text-neutral-500 mb-6" style={{ fontSize: "15px", lineHeight: 1.8, maxWidth: "420px" }}>
+                I like turning &quot;what if?&quot; into &quot;it works&quot;.
+              </p>
+            </PointerHighlight>
+          ) : (
             <p className="text-neutral-500 mb-6" style={{ fontSize: "15px", lineHeight: 1.8, maxWidth: "420px" }}>
               I like turning &quot;what if?&quot; into &quot;it works&quot;.
             </p>
-          </PointerHighlight>
-        ) : (
-          <p className="text-neutral-500 mb-6" style={{ fontSize: "15px", lineHeight: 1.8, maxWidth: "420px" }}>
-            I like turning &quot;what if?&quot; into &quot;it works&quot;.
-          </p>
-        )}
+          )}
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "28px", paddingTop: "32px" }}>
-          {socialLinks.map(({ label, href, icon: Icon }) => (
-            <a
-              key={label}
-              href={href}
-              target={href.startsWith("http") || href.endsWith(".pdf") ? "_blank" : undefined}
-              rel={href.startsWith("http") || href.endsWith(".pdf") ? "noopener noreferrer" : undefined}
-              className="group flex items-center text-neutral-500 hover:text-neutral-900 transition-colors duration-200"
-              style={{ gap: "6px", fontSize: "11px", letterSpacing: "0.15em", fontFamily: "monospace" }}
-              aria-label={label}
-            >
-              <Icon size={13} />
-              <span>{label}</span>
-              <ArrowUpRight
-                size={11}
-                className="opacity-0 group-hover:opacity-100 transition-all duration-200"
-              />
-            </a>
-          ))}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "28px", paddingTop: "32px" }}>
+            {socialLinks.map(({ label, href, icon: Icon }) => (
+              <a
+                key={label}
+                href={href}
+                target={href.startsWith("http") || href.endsWith(".pdf") ? "_blank" : undefined}
+                rel={href.startsWith("http") || href.endsWith(".pdf") ? "noopener noreferrer" : undefined}
+                className="group flex items-center text-neutral-500 hover:text-neutral-900 transition-colors duration-200"
+                style={{ gap: "6px", fontSize: "11px", letterSpacing: "0.15em", fontFamily: "monospace" }}
+                aria-label={label}
+              >
+                <Icon size={13} />
+                <span>{label}</span>
+                <ArrowUpRight
+                  size={11}
+                  className="opacity-0 group-hover:opacity-100 transition-all duration-200"
+                />
+              </a>
+            ))}
+          </div>
         </div>
+
+        {/* Right: profile photo — pixelated reveal on hover/tap */}
+        <PixelatedImageReveal
+          defaultSrc="/image.png"
+          activeSrc="/image.png"
+          alt="Kannan S."
+          aspect="auto"
+          gridSize={7}
+          pixelColor="#000000"
+          stepDuration={0.35}
+          className="flex-shrink-0"
+          style={{
+            width: "clamp(180px, 22vw, 300px)",
+            aspectRatio: "3 / 4",
+          }}
+        />
       </div>
     </section>
   );
